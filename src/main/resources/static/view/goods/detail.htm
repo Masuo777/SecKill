@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>商品详情</title>
+    <!-- jquery -->
+    <script type="text/javascript" src="../../js/jquery.min.js"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" href="../../bootstrap/css/bootstrap.min.css"/>
+    <script type="text/javascript" src="../../bootstrap/js/bootstrap.min.js"></script>
+    <!-- layer -->
+    <script type="text/javascript" src="../../layer/layer.js"></script>
+    <!-- common.js -->
+    <script type="text/javascript" src="../../js/common.js"></script>
+</head>
+<body>
+<div class="panel panel-default">
+    <div class="panel-heading">秒杀商品详情</div>
+    <div class="panel-body">
+        <span id="userTip"> 您还没有登录，请登陆后再操作<br/></span>
+        <span>没有收货地址的提示。。。</span>
+    </div>
+    <table class="table" id="goods">
+        <tr>
+            <td>商品名称</td>
+            <td colspan="3" id="goodsName"></td>
+        </tr>
+        <tr>
+            <td>商品图片</td>
+            <td colspan="3"><img id="goodsImg" width="200" height="200" alt="iphone" src=""/></td>
+        </tr>
+        <tr>
+            <td>秒杀开始时间</td>
+            <td id="goods_secKill_startTime"></td>
+            <td>
+                <input type="hidden" id="remainSeconds">
+                <span id="secKillTip"></span>
+                <span id="countDownSec"></span>
+                <span id="seconds">秒</span>
+            </td>
+            <td>
+                <!--<form id="secKillForm" method="post" action="/secKill/doSecKill">-->
+                <!--    <input type="hidden" name="goodsId" id="goodsID">-->
+                <!--    <button class="btn btn-primary btn-block" type="submit" id="secButton">立即秒杀</button>-->
+                <!--</form>-->
+                <button class="btn btn-primary btn-block" type="button" id="buyButton" onclick="doSecKill()">立即秒杀
+                    <input type="hidden" name="goodsId" id="goodsID">
+                </button>
+            </td>
+        </tr>
+        <tr>
+            <td>商品原价</td>
+            <td colspan="3" id="goodsPrice"></td>
+        </tr>
+        <tr>
+            <td>秒杀价</td>
+            <td colspan="3" id="secKillPrice"></td>
+        </tr>
+        <tr>
+            <td>库存数量</td>
+            <td colspan="3" id="stockCount"></td>
+        </tr>
+    </table>
+</div>
+</body>
+<script>
+    //$(function () {}  <==>  $().ready(function () {}  <==>  $(document).ready(function () {}
+    $(function () {
+        //页面加载完成之后执行，比ready先执行
+        getGoodsDetail();
+    });
+
+    var goodsDetailVo;
+
+    //请求商品详情
+    function getGoodsDetail() {
+        let goodsID = g_getQueryString('goodsID');
+        $.ajax({
+            url: '/goods/detail/' + goodsID,
+            type: 'GET',
+            success: function (data) {
+                // console.log(data);
+                if (data.code == 200) {
+                    // 获取传递的VO对象
+                    goodsDetailVo = data.objects;
+
+                    // 用户是否登录
+                    let user = goodsDetailVo.user;
+                    if (user != null) {
+                        $("#userTip").hide();
+                    }
+                    // 给商品信息赋值
+                    let goodsVo = goodsDetailVo.goodsVo;
+                    $("#goodsName").text(goodsVo.goodsName);
+                    $("#goodsImg").attr('src', goodsVo.goodsImg);
+                    $("#goodsID").val(goodsVo.id);
+                    // 格式化时间
+                    $("#goods_secKill_startTime").text(new Date(goodsVo.startDate).format('yyyy-MM-dd HH:mm:ss'));
+                    $("#goodsPrice").text(goodsVo.goodsPrice);
+                    $("#secKillPrice").text(goodsVo.seckillPrice);
+                    $("#stockCount").text(goodsVo.stockCount);
+                    // 秒杀活动状态，剩余时间
+                    let remainSeconds = goodsDetailVo.remainSeconds;
+                    let state = goodsDetailVo.state;
+
+                    // console.log("state:"+state);
+                    if (state === -1) {
+                        // 秒杀未开始
+                        $("#secKillTip").text("秒杀未开始，还剩");
+                        $("#countDownSec").text(remainSeconds);
+                        $("#countDownSec").css('display', 'block');
+                        $("#remainSeconds").val(remainSeconds);
+                        $("#remainSeconds").css('display', 'block');
+                        $("#seconds").show();
+                        // 启用计时器
+                        countDown();
+                    } else if (state == 0) {
+                        // 秒杀进行中
+                        $("#secKillTip").text("秒杀进行中");
+                        $("#countDownSec").css('display', 'none');
+                        $("#seconds").hide();
+                    } else if (state == 1) {
+                        // 秒杀已结束
+                        $("#secKillTip").text("秒杀已结束");
+                        $("#countDownSec").css('display', 'none');
+                        $("#seconds").hide();
+                        $("#secButton").attr("disabled", true);
+                    }
+
+                } else {
+                    layer.msg(data.message);
+                }
+            },
+            error: function (data) {
+                layer.msg(data.message);
+            }
+        })
+    }
+
+    //日期格式化, pattern 日期模式
+    Date.prototype.format = function (pattern) {
+        //声明fullDate
+        const fullDate = {
+            // 获取四位的年（yyyy）
+            'yyyy': this.getFullYear().toString(),
+            // getMonth() ==> 获取月（0-11）,需要+1
+            'MM': (this.getMonth() + 1).toString(),
+            // 以数值返回天（1-31）
+            'dd': this.getDate().toString(),
+
+            // 获取小时（0-23）
+            'HH': this.getHours().toString(),
+            // 获取分（0-59）
+            'mm': this.getMinutes().toString(),
+            // 获取秒（0-59）
+            'ss': this.getSeconds().toString()
+            //TODO 添加其他格式的时间
+        }
+        // 替换pattern里的匹配项
+        for (let f in fullDate) {
+            // alert(f); yyyy,在这里只能通过构造函数将变量传入，因为字面量会将一切字符当作匹配项
+            if (new RegExp("(" + f + ")").test(pattern)) {
+                // console.log(f);
+                // console.log(fullDate[f].length);
+                pattern = pattern.replace(RegExp.$1, fullDate[f].length === 1 ? "0" + fullDate[f] : fullDate[f]);
+            }
+        }
+        return pattern;
+    }
+
+    function countDown() {
+        // 实现倒计时刷新
+        const remainSeconds = $("#remainSeconds").val();
+
+        // console.log(typeof remainSeconds);
+        let timeout;
+        if (remainSeconds > 0) {
+            console.log(remainSeconds);
+            $('#secButton').attr("disabled", true);
+            timeout = setTimeout(function () {
+                $('#countDownSec').text(remainSeconds - 1);
+                $("#remainSeconds").val(remainSeconds - 1);
+                countDown();
+            }, 1000);
+        } else if (remainSeconds === '0') {
+            $('#secButton').attr("disabled", false);
+            console.log("");
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            $("#countDownSec").css('display', 'none');
+            $("#seconds").hide();
+            $("#secKillTip").html("秒杀进行中");
+        } else {
+            $("#countDownSec").css('display', 'none');
+            $("#seconds").hide();
+            $('#secButton').attr("disabled", true);
+            $("#secKillTip").html("秒杀已结束");
+        }
+    }
+
+    function doSecKill() {
+        let goodsID = $("#goodsID").val();
+        console.log(goodsID);
+        var orderDetail;
+        $.ajax({
+            url: '/secKill/doSecKill',
+            type: 'POST',
+            data: {
+                goodsID: goodsID
+            },
+            success(data) {
+                console.log(data);
+
+                if (data.code === 200) {
+                    //成功，然后跳转到订单详情页
+                    // orderDetail = data.objects;
+                    // let orderId = orderDetail.id;
+                    // window.location.href = '/view/order/detail.htm?orderId=' + orderId;
+
+                    // 优化之后，返回结果为一个状态值，不带有订单对象，此时我们需要根据订单id查询订单状态
+                    let orderStatus = data.objects;
+                    if (orderStatus == 1) {
+                        layer.msg("排队中...",{icon: 16, shade: [0.5, '#f5f5f5'], scrollbar: false, offset: '0px', time: Infinity})
+                    }
+                    getResult(goodsID);
+                } else {
+                    layer.msg(data.message);
+                }
+            },
+            error(data) {
+                layer.msg(data.message);
+            }
+
+        })
+    }
+
+    function getResult(goodsID) {
+        // 加载动画,直到被打断
+        console.log('获取结果中。。。')
+        g_showLoading();
+        $.ajax({
+            url: '/secKill/result',
+            type: 'GET',
+            data: {
+                goodsId: goodsID
+            },
+            success: function (data) {
+                console.log("成功获取到：");
+                console.log(data);
+                if (data.code === 200) {
+                    if (data.objects == 0) {
+                        getResult(goodsID);
+                    } else {
+                        layer.msg("下单成功！");
+                        let orderId = data.objects;
+                        window.location.href = '/view/order/detail.htm?orderId=' + orderId;
+                    }
+                }
+
+            },
+            error: function (data) {
+                layer.msg(data.message);
+            }
+        })
+    }
+
+</script>
+</html>
